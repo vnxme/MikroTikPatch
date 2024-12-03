@@ -1,4 +1,3 @@
-
 import struct,zlib
 import argparse,os
 from datetime import datetime
