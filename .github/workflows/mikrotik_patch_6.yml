@@ -46,7 +46,7 @@ jobs:
       matrix:
         channel: [long-term,stable]
     env:
-      TZ: 'Asia/Shanghai'
+      TZ: 'Europe/London'
       LATEST_VERSION: ""
     steps:
     - name: Checkout repository

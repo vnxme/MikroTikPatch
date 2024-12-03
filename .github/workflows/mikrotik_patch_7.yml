@@ -46,7 +46,7 @@ jobs:
         arch: [x86,arm64]
         channel: [stable, testing]
     env:
-      TZ: 'Asia/Shanghai'
+      TZ: 'Europe/London'
       LATEST_VERSION: ""
       ARCH: ""
 
