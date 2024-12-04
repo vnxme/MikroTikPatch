@@ -51,6 +51,34 @@ jobs:
       ARCH: ""
 
     steps:
+    - name: Check environment variables
+      run: |
+        CUSTOM_LICENSE_PRIVATE_KEY="${{ env.CUSTOM_LICENSE_PRIVATE_KEY }}"
+        CUSTOM_LICENSE_PUBLIC_KEY="${{ env.CUSTOM_LICENSE_PUBLIC_KEY }}"
+        MIKRO_LICENSE_PUBLIC_KEY="${{ env.MIKRO_LICENSE_PUBLIC_KEY }}"
+        CUSTOM_NPK_SIGN_PRIVATE_KEY="${{ env.CUSTOM_NPK_SIGN_PRIVATE_KEY }}"
+        CUSTOM_NPK_SIGN_PUBLIC_KEY="${{ env.CUSTOM_NPK_SIGN_PUBLIC_KEY }}"
+        MIKRO_NPK_SIGN_PUBLIC_LKEY="${{ env.MIKRO_NPK_SIGN_PUBLIC_LKEY }}"
+        CUSTOM_CLOUD_PUBLIC_KEY="${{ env.CUSTOM_CLOUD_PUBLIC_KEY }}"
+        MIKRO_CLOUD_PUBLIC_KEY="${{ env.MIKRO_CLOUD_PUBLIC_KEY }}"
+        CUSTOM_LICENCE_URL="${{ env.CUSTOM_LICENCE_URL }}"
+        MIKRO_LICENCE_URL="${{ env.MIKRO_LICENCE_URL }}"
+        CUSTOM_UPGRADE_URL="${{ env.CUSTOM_UPGRADE_URL }}"
+        MIKRO_UPGRADE_URL="${{ env.MIKRO_UPGRADE_URL }}"
+        CUSTOM_RENEW_URL="${{ env.CUSTOM_RENEW_URL }}"
+        MIKRO_RENEW_URL="${{ env.MIKRO_RENEW_URL }}"
+        CUSTOM_CLOUD_URL="${{ env.CUSTOM_CLOUD_URL }}"
+        MIKRO_CLOUD_URL="${{ env.MIKRO_CLOUD_URL }}"
+        if [[ ${#CUSTOM_LICENSE_PRIVATE_KEY} != 64 ]]; then exit 1; fi
+        if [[ ${#CUSTOM_LICENSE_PUBLIC_KEY} != 64 ]] || [[ ${#CUSTOM_LICENSE_PUBLIC_KEY} != ${#MIKRO_LICENSE_PUBLIC_KEY} ]]; then exit 1; fi
+        if [[ ${#CUSTOM_NPK_SIGN_PRIVATE_KEY} != 64 ]]; then exit 1; fi
+        if [[ ${#CUSTOM_NPK_SIGN_PUBLIC_KEY} != 64 ]] || [[ ${#CUSTOM_NPK_SIGN_PUBLIC_KEY} != ${#MIKRO_NPK_SIGN_PUBLIC_LKEY} ]]; then exit 1; fi
+        if [[ ${#CUSTOM_CLOUD_PUBLIC_KEY} != 60 ]] || [[ ${#CUSTOM_CLOUD_PUBLIC_KEY} != ${#MIKRO_CLOUD_PUBLIC_KEY} ]]; then exit 1; fi
+        if [[ ${#CUSTOM_LICENCE_URL} != 20 ]] || [[ ${#CUSTOM_LICENCE_URL} != ${#MIKRO_LICENCE_URL} ]]; then exit 1; fi
+        if [[ ${#CUSTOM_UPGRADE_URL} != 20 ]] || [[ ${#CUSTOM_UPGRADE_URL} != ${#MIKRO_UPGRADE_URL} ]]; then exit 1; fi
+        if [[ ${#CUSTOM_RENEW_URL} < 10 ]] || [[ ${#CUSTOM_RENEW_URL} != ${#MIKRO_RENEW_URL} ]]; then exit 1; fi
+        if [[ ${#CUSTOM_CLOUD_URL} != 19 ]] || [[ ${#CUSTOM_CLOUD_URL} != ${#MIKRO_CLOUD_URL} ]]; then exit 1; fi
+
     - name: Checkout repository
       uses: actions/checkout@v4
         
