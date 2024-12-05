@@ -6,7 +6,6 @@
 # Define the temporary working directory
   TWD='temp'
   mkdir -p $TWD
-  cd ./$TWD
   echo "PWD: $(pwd)"
 
 # Process the time zone
@@ -47,10 +46,49 @@
   echo "TARGET_VERSION: $TARGET_VERSION"
 
 # Obtain a changelog
-  wget -nv -O ./original_CHANGELOG https://$MIKRO_UPGRADE_URL/routeros/$TARGET_VERSION/CHANGELOG
-  if [[ ! -f ./original_CHANGELOG ]]; then
+  wget -nv -O ./$TWD/original_CHANGELOG https://$MIKRO_UPGRADE_URL/routeros/$TARGET_VERSION/CHANGELOG
+  if [[ ! -f ./$TWD/original_CHANGELOG ]]; then
     echo "ERROR: failed to fetch a changelog"
     exit 1
   else
-    cat ./original_CHANGELOG && echo -e "\n"
+    cat ./$TWD/original_CHANGELOG && echo -e "\n"
   fi
+
+# Create squashfs for the option package (applicable to x86 and arm64 only)
+  mkdir -p ./$TWD/patched_option/bin/
+  if [[ "$TARGET_ARCH"=='x86' ]]; then
+    cp ./busybox/busybox_x86 ./$TWD/patched_option/bin/busybox
+    chmod +x ./$TWD/patched_option/bin/busybox
+    cp ./keygen/keygen_x86 ./$TWD/patched_option/bin/keygen
+    chmod +x ./$TWD/patched_option/bin/keygen
+  elif [[ "$TARGET_ARCH"=='arm64' ]]; then
+    cp ./busybox/busybox_aarch64 ./$TWD/patched_option/bin/busybox
+    chmod +x ./$TWD/patched_option/bin/busybox
+    cp ./keygen/keygen_aarch64 ./$TWD/patched_option/bin/keygen
+    chmod +x ./$TWD/patched_option/bin/keygen
+  fi
+  chmod +x ./busybox/busybox_x86
+  COMMANDS=$(./busybox/busybox_x86 --list)
+  for cmd in $COMMANDS; do
+    ln -sf /pckg/option/bin/busybox ./$TWD/patched_option/bin/$cmd
+  done
+  mksquashfs ./$TWD/patched_option ./$TWD/patched_option.sfs -quiet -comp xz -no-xattrs -b 256k
+  # rf -rf ./$TWD/patched_option
+
+# Create squashfs for the python3 package (applicable to x86 and arm64 only)
+  mkdir -p ./$TWD/patched_python3
+  if [[ "$TARGET_ARCH"=='x86' ]]; then
+    wget -O ./$TWD/patched_cpython3.tar.gz -nv https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-x86_64-unknown-linux-musl-install_only_stripped.tar.gz
+  elif [[ "$TARGET_ARCH"=='arm64' ]]; then
+    wget -O ./$TWD/patched_cpython3.tar.gz -nv https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz
+  fi
+  if [[ ! -f ./$TWD/patched_cpython3.tar.gz ]]; then
+    echo 'ERROR: failed to fetch CPython'
+    exit 1
+  fi
+  tar -xf ./$TWD/patched_cpython3.tar.gz -C ./$TWD/patched_python3 --strip-components=1
+  rm ./$TWD/patched_cpython3.tar.gz
+  rm -rf ./$TWD/patched_python3/include
+  rm -rf ./$TWD/patched_python3/share
+  mksquashfs ./$TWD/patched_python3 ./$TWD/patched_python3.sfs -quiet -comp xz -no-xattrs -b 256k
+  # rm -rf ./$TWD/patched_python
