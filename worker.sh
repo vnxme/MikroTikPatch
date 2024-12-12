@@ -3,10 +3,14 @@
 # Display the host information
   echo "HOST: $(uname -a)"
 
-# Define the temporary working directory
-  TWD='temp'
-  mkdir -p $TWD
+# Define temporary working directories
+  TWD='./temp'
+  OWD="$TWD/original"
+  MWD="$TWD/modified"
+  mkdir -p $OWD $MWD
   echo "PWD: $(pwd)"
+  echo "OWD: $(realpath $OWD)"
+  echo "MWD: $(realpath $MWD)"
 
 # Process the time zone
   if [[ -z "$TZ" ]]; then export TZ='UTC'; fi
@@ -21,9 +25,10 @@
     echo 'ERROR: TARGET_ARCH is empty'
     exit 1
   else
-    if [[ "$TARGET_ARCH"=='x86' ]]; then
+    if [[ "$TARGET_ARCH" == 'x86' ]]; then
       TARGET_ARCH_SUFFIX=''
     else
+      echo 'test'
       TARGET_ARCH_SUFFIX="-$TARGET_ARCH"
     fi
     echo "TARGET_ARCH: $TARGET_ARCH ('$TARGET_ARCH_SUFFIX')"
@@ -46,49 +51,264 @@
   echo "TARGET_VERSION: $TARGET_VERSION"
 
 # Obtain a changelog
-  wget -nv -O ./$TWD/original_CHANGELOG https://$MIKRO_UPGRADE_URL/routeros/$TARGET_VERSION/CHANGELOG
-  if [[ ! -f ./$TWD/original_CHANGELOG ]]; then
+  if [[ ! -f $OWD/CHANGELOG ]]; then
+    wget -nv -O $OWD/CHANGELOG https://$MIKRO_UPGRADE_URL/routeros/$TARGET_VERSION/CHANGELOG
+  fi
+  if [[ ! -f $OWD/CHANGELOG ]]; then
     echo "ERROR: failed to fetch a changelog"
     exit 1
   else
-    cat ./$TWD/original_CHANGELOG && echo -e "\n"
+    echo "DEBUG: obtained a changelog, saved as $OWD/CHANGELOG"
+    cat $OWD/CHANGELOG && echo -e "\n"
   fi
 
 # Create squashfs for the option package (applicable to x86 and arm64 only)
-  mkdir -p ./$TWD/patched_option/bin/
-  if [[ "$TARGET_ARCH"=='x86' ]]; then
-    cp ./busybox/busybox_x86 ./$TWD/patched_option/bin/busybox
-    chmod +x ./$TWD/patched_option/bin/busybox
-    cp ./keygen/keygen_x86 ./$TWD/patched_option/bin/keygen
-    chmod +x ./$TWD/patched_option/bin/keygen
-  elif [[ "$TARGET_ARCH"=='arm64' ]]; then
-    cp ./busybox/busybox_aarch64 ./$TWD/patched_option/bin/busybox
-    chmod +x ./$TWD/patched_option/bin/busybox
-    cp ./keygen/keygen_aarch64 ./$TWD/patched_option/bin/keygen
-    chmod +x ./$TWD/patched_option/bin/keygen
+  mkdir -p $MWD/packages/option/bin/
+  if [[ "$TARGET_ARCH" == 'x86' ]]; then
+    if [[ ! -f ./busybox/busybox_x86 ]] || [[ ! -f ./keygen/keygen_x86 ]]; then
+      echo 'ERROR: failed to find busybox and/or keygen binaries'
+      exit 1
+    fi
+    cp ./busybox/busybox_x86 $MWD/packages/option/bin/busybox
+    chmod +x $MWD/packages/option/bin/busybox
+    cp ./keygen/keygen_x86 $MWD/packages/option/bin/keygen
+    chmod +x $MWD/packages/option/bin/keygen
+  elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
+    if [[ ! -f ./busybox/busybox_aarch64 ]] || [[ ! -f ./keygen/keygen_aarch64 ]]; then
+      echo 'ERROR: failed to find busybox and/or keygen binaries'
+      exit 1
+    fi
+    cp ./busybox/busybox_aarch64 $MWD/packages/option/bin/busybox
+    chmod +x $MWD/packages/option/bin/busybox
+    cp ./keygen/keygen_aarch64 $MWD/packages/option/bin/keygen
+    chmod +x $MWD/packages/option/bin/keygen
   fi
   chmod +x ./busybox/busybox_x86
   COMMANDS=$(./busybox/busybox_x86 --list)
   for cmd in $COMMANDS; do
-    ln -sf /pckg/option/bin/busybox ./$TWD/patched_option/bin/$cmd
+    ln -sf /pckg/option/bin/busybox $MWD/packages/option/bin/$cmd
   done
-  mksquashfs ./$TWD/patched_option ./$TWD/patched_option.sfs -quiet -comp xz -no-xattrs -b 256k
-  # rf -rf ./$TWD/patched_option
+  mksquashfs $MWD/packages/option $MWD/packages/option.sfs -quiet -comp xz -no-xattrs -b 256k
+  echo "DEBUG: created squashfs of the option package, saved as $MWD/packages/option.sfs"
+  # rf -rf $MWD/packages/option
 
 # Create squashfs for the python3 package (applicable to x86 and arm64 only)
-  mkdir -p ./$TWD/patched_python3
-  if [[ "$TARGET_ARCH"=='x86' ]]; then
-    wget -O ./$TWD/patched_cpython3.tar.gz -nv https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-x86_64-unknown-linux-musl-install_only_stripped.tar.gz
-  elif [[ "$TARGET_ARCH"=='arm64' ]]; then
-    wget -O ./$TWD/patched_cpython3.tar.gz -nv https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz
+  mkdir -p $MWD/packages/python3
+  if [[ "$TARGET_ARCH" == 'x86' ]]; then
+    if [[ ! -f $OWD/cpython3.tar.gz ]]; then
+      wget -O $OWD/cpython3.tar.gz -nv https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-x86_64-unknown-linux-musl-install_only_stripped.tar.gz
+    fi
+  elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
+    if [[ ! -f $OWD/cpython3.tar.gz ]]; then
+      wget -O $OWD/cpython3.tar.gz -nv https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz
+    fi
   fi
-  if [[ ! -f ./$TWD/patched_cpython3.tar.gz ]]; then
-    echo 'ERROR: failed to fetch CPython'
+  if [[ ! -f $OWD/cpython3.tar.gz ]]; then
+    echo 'ERROR: failed to fetch cpython binaries'
     exit 1
   fi
-  tar -xf ./$TWD/patched_cpython3.tar.gz -C ./$TWD/patched_python3 --strip-components=1
-  rm ./$TWD/patched_cpython3.tar.gz
-  rm -rf ./$TWD/patched_python3/include
-  rm -rf ./$TWD/patched_python3/share
-  mksquashfs ./$TWD/patched_python3 ./$TWD/patched_python3.sfs -quiet -comp xz -no-xattrs -b 256k
-  # rm -rf ./$TWD/patched_python
+  tar -xf $OWD/cpython3.tar.gz -C $MWD/packages/python3 --strip-components=1
+  rm $OWD/cpython3.tar.gz
+  rm -rf $MWD/packages/python3/include
+  rm -rf $MWD/packages/python3/share
+  mksquashfs $MWD/packages/python3 $MWD/packages/python3.sfs -quiet -comp xz -no-xattrs -b 256k
+  echo "DEBUG: created squashfs of the python3 package, saved as $MWD/packages/python3.sfs"
+  # rm -rf $MWD/packages/python
+
+# Create squashfs for the caddy package (applicable to x86 and arm64 only)
+  mkdir -p $MWD/packages/caddy/{bin,nova/bin}
+  ln -sf /rw/disk/etc/caddy $MWD/packages/caddy/etc
+  cp test $MWD/packages/caddy/nova/bin/test
+  if [[ "$TARGET_ARCH" == 'x86' ]]; then
+    if [[ ! -f $OWD/caddy.tar.gz ]]; then
+      wget -O $OWD/caddy.tar.gz -nv https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_linux_amd64.tar.gz
+    fi
+  elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
+    if [[ ! -f $OWD/caddy.tar.gz ]]; then
+      wget -O $OWD/caddy.tar.gz -nv https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_linux_arm64.tar.gz
+    fi
+  fi
+  if [[ ! -f $OWD/caddy.tar.gz ]]; then
+    echo 'ERROR: failed to fetch caddy binary'
+    exit 1
+  fi
+  tar -xf $OWD/caddy.tar.gz -C $MWD/packages/caddy/bin
+  rm $OWD/caddy.tar.gz
+  rm -rf $MWD/packages/caddy/bin/LICENSE
+  rm -rf $MWD/packages/caddy/bin/README.md
+  mksquashfs $MWD/packages/caddy $MWD/packages/caddy.sfs -quiet -comp xz -no-xattrs -b 256k
+  echo "DEBUG: created squashfs of the caddy package, saved as $MWD/packages/caddy.sfs"
+  # rm -rf $MWD/packages/caddy
+
+# Create squashfs for the swgp-go package (applicable to x86 and arm64 only)
+  mkdir -p $MWD/packages/swgp-go/bin
+  if [[ "$TARGET_ARCH" == 'x86' ]]; then
+    if [[ ! -f $OWD/swgp-go.tar.zst ]]; then
+      wget -O $OWD/swgp-go.tar.zst -nv https://github.com/database64128/swgp-go/releases/download/v1.6.0/swgp-go-v1.6.0-linux-x86-64-v2.tar.zst
+    fi
+  elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
+    if [[ ! -f $OWD/swgp-go.tar.zst ]]; then
+      wget -O $OWD/swgp-go.tar.zst -nv https://github.com/database64128/swgp-go/releases/download/v1.6.0/swgp-go-v1.6.0-linux-arm64.tar.zst
+    fi
+  fi
+  if [[ ! -f $OWD/swgp-go.tar.zst ]]; then
+    echo 'ERROR: failed to fetch caddy binary'
+    exit 1
+  fi
+  tar --zstd -xf $OWD/swgp-go.tar.zst -C $MWD/packages/swgp-go/bin
+  rm $OWD/swgp-go.tar.zst
+  mksquashfs $MWD/packages/swgp-go $MWD/packages/swgp-go.sfs -quiet -comp xz -no-xattrs -b 256k
+  echo "DEBUG: created squashfs of the swgp-go package, saved as $MWD/packages/swgp-go.sfs"
+  # rm -rf $MWD/packages/swgp-go
+
+# Create an ISO (patch the kernel and the root package, re-sign the remaining original packages, create the custom packages)
+  if [[ "$TARGET_ARCH" == 'x86' ]] || [[ "$TARGET_ARCH" == 'arm64' ]]; then
+    if [[ ! -f $OWD/mikrotik-$TARGET_VERSION$TARGET_ARCH_SUFFIX.iso ]];  then
+      wget -nv -O $OWD/mikrotik-$TARGET_VERSION$TARGET_ARCH_SUFFIX.iso https://download.mikrotik.com/routeros/$TARGET_VERSION/mikrotik-$TARGET_VERSION$TARGET_ARCH_SUFFIX.iso
+    fi
+    if [[ ! -f $OWD/mikrotik-$TARGET_VERSION$TARGET_ARCH_SUFFIX.iso ]];  then
+      echo 'ERROR: failed to fetch an optical disc image'
+      exit 1
+    fi
+    mkdir $OWD/iso $MWD/iso
+    mount -o loop,ro $OWD/mikrotik-$TARGET_VERSION$TARGET_ARCH_SUFFIX.iso $OWD/iso
+    cp -r $OWD/iso/* $MWD/iso/
+    rsync -a $OWD/iso/ $MWD/iso/
+    umount $OWD/iso
+    rm -rf $OWD/iso
+    mkdir $OWD/packages
+    mv $MWD/iso/routeros-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk $OWD/packages/routeros-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk
+    cp $OWD/packages/routeros-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk $MWD/packages/routeros-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk
+    python3 patch.py npk $MWD/packages/routeros-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk
+    NPK_FILES=$(find $MWD/iso/*.npk)
+    for file in $NPK_FILES; do
+      cp $file $OWD/packages/$(basename $file)
+      python3 npk.py sign $file $file
+      cp $file $MWD/packages/$(basename $file)
+    done
+    cp $MWD/packages/routeros-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk $MWD/iso/routeros-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk
+    SFS_FILES=$(find $MWD/packages/*.sfs)
+    for file in $SFS_FILES; do
+      name=$(basename $file .sfs)
+      python3 npk.py create $MWD/iso/gps-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk $MWD/iso/$name-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk $name $file -desc="$name"
+      cp $MWD/iso/$name-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk $MWD/packages/$name-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk
+    done
+    mkdir $MWD/efiboot
+    mount -o loop $MWD/iso/efiboot.img $MWD/efiboot
+    if [[ "$TARGET_ARCH" == 'x86' ]]; then
+      cp $MWD/efiboot/linux.x86_64 $OWD/BOOTX64.EFI
+      python3 patch.py kernel $MWD/efiboot/linux.x86_64
+      cp $MWD/efiboot/linux.x86_64 $MWD/BOOTX64.EFI
+      cp $MWD/BOOTX64.EFI $MWD/iso/isolinux/linux
+      umount $MWD/efiboot
+      mkisofs -o $MWD/mikrotik-$TARGET_VERSION$TARGET_ARCH_SUFFIX.iso \
+                  -V "MikroTik $TARGET_VERSION $TARGET_ARCH" \
+                  -sysid "" -preparer "MiKroTiK" \
+                  -publisher "" -A "MiKroTiK RouterOS" \
+                  -input-charset utf-8 \
+                  -b isolinux/isolinux.bin \
+                  -c isolinux/boot.cat \
+                  -no-emul-boot \
+                  -boot-load-size 4 \
+                  -boot-info-table \
+                  -eltorito-alt-boot \
+                  -e efiboot.img \
+                  -no-emul-boot \
+                  -R -J \
+                  $MWD/iso
+    elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
+      cp $MWD/efiboot/EFI/BOOT/BOOTAA64.EFI $OWD/BOOTAA64.EFI
+      python3 patch.py kernel $MWD/efiboot/EFI/BOOT/BOOTAA64.EFI
+      cp $MWD/efiboot/EFI/BOOT/BOOTAA64.EFI $MWD/BOOTAA64.EFI
+      umount $MWD/efiboot
+      xorriso -as mkisofs -o mikrotik-$TARGET_VERSION$TARGET_ARCH_SUFFIX.iso \
+                  -V "MikroTik $TARGET_VERSION $TARGET_ARCH" \
+                  -sysid "" -preparer "MiKroTiK" \
+                  -publisher "" -A "MiKroTiK RouterOS" \
+                  -input-charset utf-8 \
+                  -b efiboot.img \
+                  -no-emul-boot \
+                  -R -J \
+                  $MWD/iso
+    fi
+    rm -rf $MWD/efiboot
+    rm -rf $MWD/iso
+    zip $MWD/all_packages-$TARGET_ARCH-$TARGET_VERSION.zip $MWD/packages/*.npk
+  fi
+
+# Create a CHR raw disk image
+  if [[ "$TARGET_ARCH" == 'x86' ]] || [[ "$TARGET_ARCH" == 'arm64' ]]; then
+    if [[ ! -f $OWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img ]]; then
+      wget -nv -O $OWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img.zip https://download.mikrotik.com/routeros/$TARGET_VERSION/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img.zip
+      if [[ -f $OWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img.zip ]]; then
+        unzip $OWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img.zip -d $OWD
+        rm $OWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img.zip
+      fi
+    fi
+    if [[ ! -f $OWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img ]]; then
+      echo 'ERROR: failed to fetch a CHR raw disk image'
+      exit 1
+    fi
+    truncate --size 128M $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
+    sgdisk --clear --set-alignment=2 \
+        --new=1::+32M --typecode=1:8300 --change-name=1:"RouterOS Boot" --attributes=1:set:2 \
+        --new=2::-0 --typecode=2:8300 --change-name=2:"RouterOS" \
+        --gpttombr=1:2 \
+        $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
+    dd if=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img of=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.pt.bin bs=1 count=66 skip=446
+    echo -e "\x80" | dd of=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.pt.bin bs=1 count=1 conv=notrunc
+    sgdisk --mbrtogpt --clear --set-alignment=2 \
+        --new=1::+32M --typecode=1:8300 --change-name=1:"RouterOS Boot" --attributes=1:set:2 \
+        --new=2::-0 --typecode=2:8300 --change-name=2:"RouterOS" \
+        $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
+    dd if=mbr.bin of=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img bs=1 count=446 conv=notrunc
+    dd if=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.pt.bin of=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img bs=1 count=66 seek=446 conv=notrunc
+    qemu-nbd -c /dev/nbd0 -f raw $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
+    mkfs.vfat -n "Boot" /dev/nbd0p1
+    mkfs.ext4 -F -L "RouterOS" -m 0 /dev/nbd0p2
+    mkdir -p $OWD/img/{boot,routeros} $MWD/img/{boot,routeros}
+    mount /dev/nbd0p1 $MWD/img/boot/
+    if [[ "$TARGET_ARCH" == 'x86' ]]; then
+      mkdir -p $MWD/img/boot/{BOOT,EFI/BOOT}
+      cp $MWD/BOOTX64.EFI $MWD/img/boot/EFI/BOOT/BOOTX64.EFI
+      extlinux --install  -H 64 -S 32 $MWD/img/boot/BOOT
+      echo -e "default system\nlabel system\n\tkernel /EFI/BOOT/BOOTX64.EFI\n\tappend load_ramdisk=1 root=/dev/ram0 quiet" > $MWD/img/boot/BOOT/syslinux.cfg
+    elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
+      qemu-nbd -c /dev/nbd1 -f raw $OWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
+      mkdir -p $OWD/img/boot
+      mount /dev/nbd1p1 $OWD/img/boot/
+      python3 patch.py kernel $OWD/img/boot/EFI/BOOT/BOOTAA64.EFI -O $MWD/CHR.BOOTAA64.EFI
+      mkdir -p  $MWD/img/boot/EFI/BOOT
+      cp $MWD/CHR.BOOTAA64.EFI $MWD/img/boot/EFI/BOOT/BOOTAA64.EFI
+      umount /dev/nbd1p1
+      qemu-nbd -d /dev/nbd1
+    fi
+    umount /dev/nbd0p1
+    mount  /dev/nbd0p2 $MWD/img/routeros/
+    mkdir -p $MWD/img/routeros/{var/pdb/{system,option},boot,rw}
+    cp $MWD/packages/option-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk $MWD/img/routeros/var/pdb/option/image
+    cp $MWD/packages/routeros-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk $MWD/img/routeros/var/pdb/system/image
+    umount /dev/nbd0p2
+    qemu-nbd -d /dev/nbd0
+    rm -rf $OWD/img $MWD/img
+
+    qemu-img convert -f raw -O qcow2 $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.qcow2
+    qemu-img convert -f raw -O vmdk $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vmdk
+    qemu-img convert -f raw -O vpc $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhd
+    qemu-img convert -f raw -O vhdx $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhdx
+    qemu-img convert -f raw -O vdi $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vdi
+
+    zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.qcow2.zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.qcow2
+    zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vmdk.zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vmdk
+    zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhd.zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhd
+    zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhdx.zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhdx
+    zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vdi.zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vdi
+    zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img.zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
+
+    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.qcow2
+    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vmdk
+    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhd
+    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhdx
+    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vdi
+    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
+  fi

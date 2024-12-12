@@ -1,0 +1,61 @@
+name: Patch Mikrotik RouterOS 7.x (worker.sh)
+on:
+  push:
+    branches:
+      - test
+#  schedule:
+#    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CUSTOM_LICENSE_PRIVATE_KEY: ${{ secrets.CUSTOM_LICENSE_PRIVATE_KEY }}
+  CUSTOM_LICENSE_PUBLIC_KEY: ${{ secrets.CUSTOM_LICENSE_PUBLIC_KEY }}
+  CUSTOM_NPK_SIGN_PRIVATE_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PRIVATE_KEY }}
+  CUSTOM_NPK_SIGN_PUBLIC_KEY: ${{ secrets.CUSTOM_NPK_SIGN_PUBLIC_KEY }}
+  CUSTOM_CLOUD_PUBLIC_KEY: ${{ secrets.CUSTOM_CLOUD_PUBLIC_KEY }}
+  MIKRO_LICENSE_PUBLIC_KEY: ${{ secrets.MIKRO_LICENSE_PUBLIC_KEY }}
+  MIKRO_NPK_SIGN_PUBLIC_KEY: ${{ secrets.MIKRO_NPK_SIGN_PUBLIC_KEY }}
+  MIKRO_CLOUD_PUBLIC_KEY: ${{ secrets.MIKRO_CLOUD_PUBLIC_KEY }}
+  MIKRO_LICENCE_URL: ${{ secrets.MIKRO_LICENCE_URL }}
+  CUSTOM_LICENCE_URL: ${{ secrets.CUSTOM_LICENCE_URL }}
+  MIKRO_UPGRADE_URL: ${{ secrets.MIKRO_UPGRADE_URL }}
+  CUSTOM_UPGRADE_URL: ${{ secrets.CUSTOM_UPGRADE_URL }}
+  MIKRO_RENEW_URL: ${{ secrets.MIKRO_RENEW_URL }}
+  CUSTOM_RENEW_URL: ${{ secrets.CUSTOM_RENEW_URL }}
+  MIKRO_CLOUD_URL: ${{ secrets.MIKRO_CLOUD_URL }}
+  CUSTOM_CLOUD_URL: ${{ secrets.CUSTOM_CLOUD_URL }}
+  CUSTOM_LOGO_TEXT: ${{ secrets.CUSTOM_LOGO_TEXT }}
+
+jobs:
+  Patch_RouterOS:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        arch: [ x86 ]
+        channel: [ stable ]
+    env:
+      TARGET_VERSION: ''
+      TZ: ''
+    steps:
+      - name: Install the requirements
+        run: |
+          sudo apt-get update > /dev/null
+          sudo apt-get install -y dosfstools extlinux mkisofs rsync qemu-utils xorriso zip zstd > /dev/null
+          sudo modprobe nbd
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Run the worker
+        run: |
+          export TARGET_ARCH=${{ matrix.arch }}
+          export TARGET_CHANNEL=${{ matrix.channel }}
+          sudo -E bash ./worker.sh
