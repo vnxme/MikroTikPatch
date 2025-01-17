@@ -246,8 +246,8 @@
       python3 patch.py files $file $OWD/packages
       python3 patch.py squashfs $file $OWD/packages
     done
-    zip -r $OWD/unpacked_files-$TARGET_ARCH-$TARGET_VERSION.zip $OWD/packages/* -x $OWD/packages/*.npk $OWD/packages/*.sfs
-    zip $MWD/all_packages-$TARGET_ARCH-$TARGET_VERSION.zip $MWD/packages/*.npk
+    cd $OWD/packages; zip -r -y ../unpacked_files-$TARGET_ARCH-$TARGET_VERSION.zip * -x *.npk *.sfs; cd -
+    cd $MWD/packages; zip ../all_packages-$TARGET_ARCH-$TARGET_VERSION.zip *.npk; cd -
   fi
 
 # Create a CHR raw disk image
@@ -312,12 +312,14 @@
     qemu-img convert -f raw -O vhdx $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhdx
     qemu-img convert -f raw -O vdi $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vdi
 
-    zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.qcow2.zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.qcow2
-    zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vmdk.zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vmdk
-    zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhd.zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhd
-    zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhdx.zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhdx
-    zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vdi.zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vdi
-    zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img.zip $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
+    cd $MWD
+    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.qcow2.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.qcow2
+    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vmdk.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vmdk
+    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhd.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhd
+    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhdx.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhdx
+    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vdi.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vdi
+    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
+    cd -
 
     rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.qcow2
     rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vmdk
