@@ -289,6 +289,40 @@ def run_shell_command(command):
     process = subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return process.stdout, process.stderr
 
+def unpack_squashfs_from_npk_package(package, dst_dir):
+    squashfs_file = f'{dst_dir}/{package[NpkPartID.NAME_INFO].data.name}.sfs'
+    extract_dir = f'{dst_dir}/{package[NpkPartID.NAME_INFO].data.name}'
+    open(squashfs_file, 'wb').write(package[NpkPartID.SQUASHFS].data)
+    run_shell_command(f"unsquashfs -d {extract_dir} {squashfs_file}")
+    # run_shell_command(f"rm -f {squashfs_file}")
+    # run_shell_command(f"tar -czf {dst_dir}/{package[NpkPartID.NAME_INFO].data.name}.tar.gz {extract_dir}")
+    # run_shell_command(f"rm -rf {extract_dir}")
+
+def unpack_squashfs_from_npk_file(input_file,dst_dir):
+    npk = NovaPackage.load(input_file)
+    if len(npk._packages) > 0:
+        for package in npk._packages:
+            unpack_squashfs_from_npk_package(package,dst_dir)
+    else:
+        unpack_squashfs_from_npk_package(npk,dst_dir)
+
+def unpack_files_from_npk_package(package, dst_dir):
+    if (NpkPartID.FILE_CONTAINER in package) and (len(package[NpkPartID.FILE_CONTAINER].data) > 0):
+        file_container = NpkFileContainer.unserialize_from(package[NpkPartID.FILE_CONTAINER].data)
+        for item in file_container:
+            if item.type != 65: # if this is not a directory
+                item_file = f"{dst_dir}/{package[NpkPartID.NAME_INFO].data.name}-files/{item.name.decode('utf-8')}"
+                os.makedirs(os.path.dirname(item_file), exist_ok=True)
+                open(item_file, 'wb').write(item.data)
+
+def unpack_files_from_npk_file(input_file,dst_dir):
+    npk = NovaPackage.load(input_file)
+    if len(npk._packages) > 0:
+        for package in npk._packages:
+            unpack_files_from_npk_package(package,dst_dir)
+    else:
+        unpack_files_from_npk_package(npk,dst_dir)
+
 def patch_npk_package(package,key_dict):
     if package[NpkPartID.NAME_INFO].data.name == 'system':
         file_container = NpkFileContainer.unserialize_from(package[NpkPartID.FILE_CONTAINER].data)
@@ -341,6 +375,12 @@ if __name__ == '__main__':
     netinstall_parser = subparsers.add_parser('netinstall',help='patch netinstall file')
     netinstall_parser.add_argument('input',type=str, help='Input file')
     netinstall_parser.add_argument('-O','--output',type=str,help='Output file')
+    squashfs_unpacker = subparsers.add_parser('squashfs',help='unpack squashfs from npk file')
+    squashfs_unpacker.add_argument('input',type=str, help='Input file')
+    squashfs_unpacker.add_argument('dir', type=str, help='Destination directory')
+    files_unpacker = subparsers.add_parser('files',help='unpack files from npk file')
+    files_unpacker.add_argument('input',type=str, help='Input file')
+    files_unpacker.add_argument('dir', type=str, help='Destination directory')
     args = parser.parse_args()
     key_dict = {
         bytes.fromhex(os.environ['MIKRO_LICENSE_PUBLIC_KEY']):bytes.fromhex(os.environ['CUSTOM_LICENSE_PUBLIC_KEY']),
@@ -361,6 +401,12 @@ if __name__ == '__main__':
     elif args.command == 'netinstall':
         print(f'patching {args.input} ...')
         patch_netinstall(key_dict,args.input,args.output)
+    elif args.command == 'squashfs':
+        print(f'unpacking squashfs from {args.input} ...')
+        unpack_squashfs_from_npk_file(args.input, args.dir)
+    elif args.command == 'files':
+        print(f'unpacking files from {args.input} ...')
+        unpack_files_from_npk_file(args.input, args.dir)
     else:
         parser.print_help()
 
