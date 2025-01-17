@@ -63,103 +63,111 @@
   fi
 
 # Create squashfs for the option package (applicable to x86 and arm64 only)
-  mkdir -p $MWD/packages/option/bin/
-  if [[ "$TARGET_ARCH" == 'x86' ]]; then
-    if [[ ! -f ./busybox/busybox_x86 ]] || [[ ! -f ./keygen/keygen_x86 ]]; then
-      echo 'ERROR: failed to find busybox and/or keygen binaries'
-      exit 1
+  if [[ "$TARGET_ARCH" == 'x86' ]] || [[ "$TARGET_ARCH" == 'arm64' ]]; then
+    mkdir -p $MWD/packages/option/bin/
+    if [[ "$TARGET_ARCH" == 'x86' ]]; then
+      if [[ ! -f ./busybox/busybox_x86 ]] || [[ ! -f ./keygen/keygen_x86 ]]; then
+        echo 'ERROR: failed to find busybox and/or keygen binaries'
+        exit 1
+      fi
+      cp ./busybox/busybox_x86 $MWD/packages/option/bin/busybox
+      chmod +x $MWD/packages/option/bin/busybox
+      cp ./keygen/keygen_x86 $MWD/packages/option/bin/keygen
+      chmod +x $MWD/packages/option/bin/keygen
+    elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
+      if [[ ! -f ./busybox/busybox_aarch64 ]] || [[ ! -f ./keygen/keygen_aarch64 ]]; then
+        echo 'ERROR: failed to find busybox and/or keygen binaries'
+        exit 1
+      fi
+      cp ./busybox/busybox_aarch64 $MWD/packages/option/bin/busybox
+      chmod +x $MWD/packages/option/bin/busybox
+      cp ./keygen/keygen_aarch64 $MWD/packages/option/bin/keygen
+      chmod +x $MWD/packages/option/bin/keygen
     fi
-    cp ./busybox/busybox_x86 $MWD/packages/option/bin/busybox
-    chmod +x $MWD/packages/option/bin/busybox
-    cp ./keygen/keygen_x86 $MWD/packages/option/bin/keygen
-    chmod +x $MWD/packages/option/bin/keygen
-  elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
-    if [[ ! -f ./busybox/busybox_aarch64 ]] || [[ ! -f ./keygen/keygen_aarch64 ]]; then
-      echo 'ERROR: failed to find busybox and/or keygen binaries'
-      exit 1
-    fi
-    cp ./busybox/busybox_aarch64 $MWD/packages/option/bin/busybox
-    chmod +x $MWD/packages/option/bin/busybox
-    cp ./keygen/keygen_aarch64 $MWD/packages/option/bin/keygen
-    chmod +x $MWD/packages/option/bin/keygen
+    chmod +x ./busybox/busybox_x86
+    COMMANDS=$(./busybox/busybox_x86 --list)
+    for cmd in $COMMANDS; do
+      ln -sf /pckg/option/bin/busybox $MWD/packages/option/bin/$cmd
+    done
+    mksquashfs $MWD/packages/option $MWD/packages/option.sfs -quiet -comp xz -no-xattrs -b 256k
+    echo "DEBUG: created squashfs of the option package, saved as $MWD/packages/option.sfs"
+    # rf -rf $MWD/packages/option
   fi
-  chmod +x ./busybox/busybox_x86
-  COMMANDS=$(./busybox/busybox_x86 --list)
-  for cmd in $COMMANDS; do
-    ln -sf /pckg/option/bin/busybox $MWD/packages/option/bin/$cmd
-  done
-  mksquashfs $MWD/packages/option $MWD/packages/option.sfs -quiet -comp xz -no-xattrs -b 256k
-  echo "DEBUG: created squashfs of the option package, saved as $MWD/packages/option.sfs"
-  # rf -rf $MWD/packages/option
 
 # Create squashfs for the python3 package (applicable to x86 and arm64 only)
-  mkdir -p $MWD/packages/python3
-  if [[ "$TARGET_ARCH" == 'x86' ]]; then
-    if [[ ! -f $OWD/cpython3.tar.gz ]]; then
-      wget -O $OWD/cpython3.tar.gz -nv https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-x86_64-unknown-linux-musl-install_only_stripped.tar.gz
+  if [[ "$TARGET_ARCH" == 'x86' ]] || [[ "$TARGET_ARCH" == 'arm64' ]]; then
+    mkdir -p $MWD/packages/python3
+    if [[ "$TARGET_ARCH" == 'x86' ]]; then
+      if [[ ! -f $OWD/cpython3.tar.gz ]]; then
+        wget -O $OWD/cpython3.tar.gz -nv https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-x86_64-unknown-linux-musl-install_only_stripped.tar.gz
+      fi
+    elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
+      if [[ ! -f $OWD/cpython3.tar.gz ]]; then
+        wget -O $OWD/cpython3.tar.gz -nv https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz
+      fi
     fi
-  elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
     if [[ ! -f $OWD/cpython3.tar.gz ]]; then
-      wget -O $OWD/cpython3.tar.gz -nv https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10+20241016-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz
+      echo 'ERROR: failed to fetch cpython binaries'
+      exit 1
     fi
+    tar -xf $OWD/cpython3.tar.gz -C $MWD/packages/python3 --strip-components=1
+    rm $OWD/cpython3.tar.gz
+    rm -rf $MWD/packages/python3/include
+    rm -rf $MWD/packages/python3/share
+    mksquashfs $MWD/packages/python3 $MWD/packages/python3.sfs -quiet -comp xz -no-xattrs -b 256k
+    echo "DEBUG: created squashfs of the python3 package, saved as $MWD/packages/python3.sfs"
+    # rm -rf $MWD/packages/python
   fi
-  if [[ ! -f $OWD/cpython3.tar.gz ]]; then
-    echo 'ERROR: failed to fetch cpython binaries'
-    exit 1
-  fi
-  tar -xf $OWD/cpython3.tar.gz -C $MWD/packages/python3 --strip-components=1
-  rm $OWD/cpython3.tar.gz
-  rm -rf $MWD/packages/python3/include
-  rm -rf $MWD/packages/python3/share
-  mksquashfs $MWD/packages/python3 $MWD/packages/python3.sfs -quiet -comp xz -no-xattrs -b 256k
-  echo "DEBUG: created squashfs of the python3 package, saved as $MWD/packages/python3.sfs"
-  # rm -rf $MWD/packages/python
 
 # Create squashfs for the caddy package (applicable to x86 and arm64 only)
-  mkdir -p $MWD/packages/caddy/{bin,nova/bin}
-  ln -sf /rw/disk/etc/caddy $MWD/packages/caddy/etc
-  cp test $MWD/packages/caddy/nova/bin/test
-  if [[ "$TARGET_ARCH" == 'x86' ]]; then
-    if [[ ! -f $OWD/caddy.tar.gz ]]; then
-      wget -O $OWD/caddy.tar.gz -nv https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_linux_amd64.tar.gz
+  if [[ "$TARGET_ARCH" == 'x86' ]] || [[ "$TARGET_ARCH" == 'arm64' ]]; then
+    mkdir -p $MWD/packages/caddy/{bin,nova/bin}
+    ln -sf /rw/disk/etc/caddy $MWD/packages/caddy/etc
+    cp test $MWD/packages/caddy/nova/bin/test
+    if [[ "$TARGET_ARCH" == 'x86' ]]; then
+      if [[ ! -f $OWD/caddy.tar.gz ]]; then
+        wget -O $OWD/caddy.tar.gz -nv https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_linux_amd64.tar.gz
+      fi
+    elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
+      if [[ ! -f $OWD/caddy.tar.gz ]]; then
+        wget -O $OWD/caddy.tar.gz -nv https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_linux_arm64.tar.gz
+      fi
     fi
-  elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
     if [[ ! -f $OWD/caddy.tar.gz ]]; then
-      wget -O $OWD/caddy.tar.gz -nv https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_linux_arm64.tar.gz
+      echo 'ERROR: failed to fetch caddy binary'
+      exit 1
     fi
+    tar -xf $OWD/caddy.tar.gz -C $MWD/packages/caddy/bin
+    rm $OWD/caddy.tar.gz
+    rm -rf $MWD/packages/caddy/bin/LICENSE
+    rm -rf $MWD/packages/caddy/bin/README.md
+    mksquashfs $MWD/packages/caddy $MWD/packages/caddy.sfs -quiet -comp xz -no-xattrs -b 256k
+    echo "DEBUG: created squashfs of the caddy package, saved as $MWD/packages/caddy.sfs"
+    # rm -rf $MWD/packages/caddy
   fi
-  if [[ ! -f $OWD/caddy.tar.gz ]]; then
-    echo 'ERROR: failed to fetch caddy binary'
-    exit 1
-  fi
-  tar -xf $OWD/caddy.tar.gz -C $MWD/packages/caddy/bin
-  rm $OWD/caddy.tar.gz
-  rm -rf $MWD/packages/caddy/bin/LICENSE
-  rm -rf $MWD/packages/caddy/bin/README.md
-  mksquashfs $MWD/packages/caddy $MWD/packages/caddy.sfs -quiet -comp xz -no-xattrs -b 256k
-  echo "DEBUG: created squashfs of the caddy package, saved as $MWD/packages/caddy.sfs"
-  # rm -rf $MWD/packages/caddy
 
 # Create squashfs for the swgp-go package (applicable to x86 and arm64 only)
-  mkdir -p $MWD/packages/swgp-go/bin
-  if [[ "$TARGET_ARCH" == 'x86' ]]; then
-    if [[ ! -f $OWD/swgp-go.tar.zst ]]; then
-      wget -O $OWD/swgp-go.tar.zst -nv https://github.com/database64128/swgp-go/releases/download/v1.6.0/swgp-go-v1.6.0-linux-x86-64-v2.tar.zst
+  if [[ "$TARGET_ARCH" == 'x86' ]] || [[ "$TARGET_ARCH" == 'arm64' ]]; then
+    mkdir -p $MWD/packages/swgp-go/bin
+    if [[ "$TARGET_ARCH" == 'x86' ]]; then
+      if [[ ! -f $OWD/swgp-go.tar.zst ]]; then
+        wget -O $OWD/swgp-go.tar.zst -nv https://github.com/database64128/swgp-go/releases/download/v1.6.0/swgp-go-v1.6.0-linux-x86-64-v2.tar.zst
+      fi
+    elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
+      if [[ ! -f $OWD/swgp-go.tar.zst ]]; then
+        wget -O $OWD/swgp-go.tar.zst -nv https://github.com/database64128/swgp-go/releases/download/v1.6.0/swgp-go-v1.6.0-linux-arm64.tar.zst
+      fi
     fi
-  elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
     if [[ ! -f $OWD/swgp-go.tar.zst ]]; then
-      wget -O $OWD/swgp-go.tar.zst -nv https://github.com/database64128/swgp-go/releases/download/v1.6.0/swgp-go-v1.6.0-linux-arm64.tar.zst
+      echo 'ERROR: failed to fetch caddy binary'
+      exit 1
     fi
+    tar --zstd -xf $OWD/swgp-go.tar.zst -C $MWD/packages/swgp-go/bin
+    rm $OWD/swgp-go.tar.zst
+    mksquashfs $MWD/packages/swgp-go $MWD/packages/swgp-go.sfs -quiet -comp xz -no-xattrs -b 256k
+    echo "DEBUG: created squashfs of the swgp-go package, saved as $MWD/packages/swgp-go.sfs"
+    # rm -rf $MWD/packages/swgp-go
   fi
-  if [[ ! -f $OWD/swgp-go.tar.zst ]]; then
-    echo 'ERROR: failed to fetch caddy binary'
-    exit 1
-  fi
-  tar --zstd -xf $OWD/swgp-go.tar.zst -C $MWD/packages/swgp-go/bin
-  rm $OWD/swgp-go.tar.zst
-  mksquashfs $MWD/packages/swgp-go $MWD/packages/swgp-go.sfs -quiet -comp xz -no-xattrs -b 256k
-  echo "DEBUG: created squashfs of the swgp-go package, saved as $MWD/packages/swgp-go.sfs"
-  # rm -rf $MWD/packages/swgp-go
 
 # Create an ISO (patch the kernel and the root package, re-sign the remaining original packages, create the custom packages)
   if [[ "$TARGET_ARCH" == 'x86' ]] || [[ "$TARGET_ARCH" == 'arm64' ]]; then
@@ -221,7 +229,7 @@
       python3 patch.py kernel $MWD/efiboot/EFI/BOOT/BOOTAA64.EFI
       cp $MWD/efiboot/EFI/BOOT/BOOTAA64.EFI $MWD/BOOTAA64.EFI
       umount $MWD/efiboot
-      xorriso -as mkisofs -o mikrotik-$TARGET_VERSION$TARGET_ARCH_SUFFIX.iso \
+      xorriso -as mkisofs -o $MWD/mikrotik-$TARGET_VERSION$TARGET_ARCH_SUFFIX.iso \
                   -V "MikroTik $TARGET_VERSION $TARGET_ARCH" \
                   -sysid "" -preparer "MiKroTiK" \
                   -publisher "" -A "MiKroTiK RouterOS" \
@@ -233,6 +241,12 @@
     fi
     rm -rf $MWD/efiboot
     rm -rf $MWD/iso
+    NPK_FILES=$(find $OWD/packages/*.npk)
+    for file in $NPK_FILES; do
+      python3 patch.py files $file $OWD/packages
+      python3 patch.py squashfs $file $OWD/packages
+    done
+    zip -r $OWD/unpacked_files-$TARGET_ARCH-$TARGET_VERSION.zip $OWD/packages/* -x $OWD/packages/*.npk $OWD/packages/*.sfs
     zip $MWD/all_packages-$TARGET_ARCH-$TARGET_VERSION.zip $MWD/packages/*.npk
   fi
 
