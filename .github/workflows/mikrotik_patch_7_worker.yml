@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        arch: [ x86 ]
+        arch: [ x86, arm64 ]
         channel: [ stable ]
     env:
       TARGET_VERSION: ''
@@ -59,3 +59,22 @@ jobs:
           export TARGET_ARCH=${{ matrix.arch }}
           export TARGET_CHANNEL=${{ matrix.channel }}
           sudo -E bash ./worker.sh
+
+      - name: Get the target version
+        run: |
+          echo "TARGET_VERSION=$(echo $(find temp/modified/all_packages*.zip) | cut -d '-' -f3 | sed 's/.zip//')" >> $GITHUB_ENV
+
+      - name: Create a release tag
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "RouterOS ${{ env.TARGET_VERSION }}"
+          body_path: "temp/original/CHANGELOG"
+          tag_name: v${{ env.TARGET_VERSION }}
+          make_latest:  ${{ matrix.channel == 'stable' }}
+          prerelease:  ${{ matrix.channel == 'testing' }}
+          files: |
+            temp/modified/all_packages-${{ matrix.arch }}-${{ env.TARGET_VERSION }}.zip
+            temp/modified/chr-${{ env.TARGET_VERSION }}*.*.zip
+            temp/modified/mikrotik-${{ env.TARGET_VERSION }}*.iso
+            temp/modified/packages/routeros-${{ env.TARGET_VERSION }}*.npk
+            temp/original/unpacked_files-${{ matrix.arch }}-${{ env.TARGET_VERSION }}.zip
