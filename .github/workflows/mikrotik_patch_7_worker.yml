@@ -74,7 +74,8 @@ jobs:
           prerelease:  ${{ matrix.channel == 'testing' }}
           files: |
             temp/modified/all_packages-${{ matrix.arch }}-${{ env.TARGET_VERSION }}.zip
-            temp/modified/chr-${{ env.TARGET_VERSION }}*.*.zip
+            temp/modified/chr-${{ env.TARGET_VERSION }}*-bios.*.zip
+            temp/modified/chr-${{ env.TARGET_VERSION }}*-uefi.*.zip
             temp/modified/mikrotik-${{ env.TARGET_VERSION }}*.iso
             temp/modified/packages/routeros-${{ env.TARGET_VERSION }}*.npk
             temp/original/unpacked_files-${{ matrix.arch }}-${{ env.TARGET_VERSION }}.zip

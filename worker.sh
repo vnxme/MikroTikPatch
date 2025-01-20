@@ -263,30 +263,49 @@
       echo 'ERROR: failed to fetch a CHR raw disk image'
       exit 1
     fi
-    truncate --size 128M $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
+    truncate --size 128M $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img
     sgdisk --clear --set-alignment=2 \
         --new=1::+32M --typecode=1:8300 --change-name=1:"RouterOS Boot" --attributes=1:set:2 \
         --new=2::-0 --typecode=2:8300 --change-name=2:"RouterOS" \
         --gpttombr=1:2 \
-        $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
-    dd if=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img of=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.pt.bin bs=1 count=66 skip=446
-    echo -e "\x80" | dd of=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.pt.bin bs=1 count=1 conv=notrunc
+        $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img
+    dd if=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img of=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.pt.bin bs=1 count=66 skip=446
+    echo -e "\x80" | dd of=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.pt.bin bs=1 count=1 conv=notrunc
     sgdisk --mbrtogpt --clear --set-alignment=2 \
         --new=1::+32M --typecode=1:8300 --change-name=1:"RouterOS Boot" --attributes=1:set:2 \
         --new=2::-0 --typecode=2:8300 --change-name=2:"RouterOS" \
-        $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
-    dd if=mbr.bin of=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img bs=1 count=446 conv=notrunc
-    dd if=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.pt.bin of=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img bs=1 count=66 seek=446 conv=notrunc
-    qemu-nbd -c /dev/nbd0 -f raw $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
+        $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img
+    dd if=mbr.bin of=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img bs=1 count=446 conv=notrunc
+    dd if=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.pt.bin of=$MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img bs=1 count=66 seek=446 conv=notrunc
+    qemu-nbd -c /dev/nbd0 -f raw $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img
     mkfs.vfat -n "Boot" /dev/nbd0p1
     mkfs.ext4 -F -L "RouterOS" -m 0 /dev/nbd0p2
     mkdir -p $OWD/img/{boot,routeros} $MWD/img/{boot,routeros}
     mount /dev/nbd0p1 $MWD/img/boot/
     if [[ "$TARGET_ARCH" == 'x86' ]]; then
-      mkdir -p $MWD/img/boot/{BOOT,EFI/BOOT}
-      cp $MWD/BOOTX64.EFI $MWD/img/boot/EFI/BOOT/BOOTX64.EFI
-      extlinux --install  -H 64 -S 32 $MWD/img/boot/BOOT
-      echo -e "default system\nlabel system\n\tkernel /EFI/BOOT/BOOTX64.EFI\n\tappend load_ramdisk=1 root=/dev/ram0 quiet" > $MWD/img/boot/BOOT/syslinux.cfg
+      # mkdir -p $MWD/img/boot/{BOOT,EFI/BOOT}
+      # cp $MWD/BOOTX64.EFI $MWD/img/boot/EFI/BOOT/BOOTX64.EFI
+      # extlinux --install  -H 64 -S 32 $MWD/img/boot/BOOT
+      # echo -e "default system\nlabel system\n\tkernel /EFI/BOOT/BOOTX64.EFI\n\tappend load_ramdisk=1 root=/dev/ram0 quiet" > $MWD/img/boot/BOOT/syslinux.cfg
+
+      cp $OWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.img
+      qemu-nbd -c /dev/nbd1 -f raw $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.img
+      python3 patch.py block /dev/nbd1p1 EFI/BOOT/BOOTX64.EFI
+      mkdir -p $MWD/img/{bios-boot,bios-routeros}
+      mount /dev/nbd1p1 $MWD/img/bios-boot/
+      cp $MWD/img/bios-boot/EFI/BOOT/BOOTX64.EFI $MWD/CHR.BOOTX64.EFI
+      umount /dev/nbd1p1
+      shred -v -n 1 -z /dev/nbd1p2
+      mkfs.ext4 -F -L "RouterOS"  -m 0 /dev/nbd1p2
+      mount /dev/nbd1p2 $MWD/img/bios-routeros/
+      mkdir -p $MWD/img/bios-routeros/{var/pdb/{system,option},boot,rw}
+      cp $MWD/packages/option-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk $MWD/img/bios-routeros/var/pdb/option/image
+      cp $MWD/packages/routeros-$TARGET_VERSION$TARGET_ARCH_SUFFIX.npk $MWD/img/bios-routeros/var/pdb/system/image
+      umount /dev/nbd1p2
+      qemu-nbd -d /dev/nbd1
+
+      mkdir -p $MWD/img/boot/EFI/BOOT
+      cp $MWD/CHR.BOOTX64.EFI $MWD/img/boot/EFI/BOOT/BOOTX64.EFI
     elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
       qemu-nbd -c /dev/nbd1 -f raw $OWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
       mkdir -p $OWD/img/boot
@@ -306,25 +325,49 @@
     qemu-nbd -d /dev/nbd0
     rm -rf $OWD/img $MWD/img
 
-    qemu-img convert -f raw -O qcow2 $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.qcow2
-    qemu-img convert -f raw -O vmdk $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vmdk
-    qemu-img convert -f raw -O vpc $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhd
-    qemu-img convert -f raw -O vhdx $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhdx
-    qemu-img convert -f raw -O vdi $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vdi
+    qemu-img convert -f raw -O qcow2 $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.qcow2
+    qemu-img convert -f raw -O vmdk $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vmdk
+    qemu-img convert -f raw -O vpc $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vhd
+    qemu-img convert -f raw -O vhdx $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vhdx
+    qemu-img convert -f raw -O vdi $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vdi
 
     cd $MWD
-    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.qcow2.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.qcow2
-    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vmdk.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vmdk
-    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhd.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhd
-    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhdx.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhdx
-    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vdi.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vdi
-    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
+    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.qcow2.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.qcow2
+    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vmdk.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vmdk
+    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vhd.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vhd
+    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vhdx.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vhdx
+    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vdi.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vdi
+    zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img
     cd -
 
-    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.qcow2
-    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vmdk
-    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhd
-    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vhdx
-    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.vdi
-    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img
+    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.qcow2
+    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vmdk
+    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vhd
+    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vhdx
+    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.vdi
+    rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-uefi.img
+
+    if [[ -f $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.img ]]; then
+      qemu-img convert -f raw -O qcow2 $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.qcow2
+      qemu-img convert -f raw -O vmdk $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vmdk
+      qemu-img convert -f raw -O vpc $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vhd
+      qemu-img convert -f raw -O vhdx $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vhdx
+      qemu-img convert -f raw -O vdi $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vdi
+
+      cd $MWD
+      zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.qcow2.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.qcow2
+      zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vmdk.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vmdk
+      zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vhd.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vhd
+      zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vhdx.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vhdx
+      zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vdi.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vdi
+      zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.img.zip chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.img
+      cd -
+
+      rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.qcow2
+      rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vmdk
+      rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vhd
+      rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vhdx
+      rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.vdi
+      rm $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.img
+    fi
   fi
