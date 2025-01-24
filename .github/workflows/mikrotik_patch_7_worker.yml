@@ -78,6 +78,8 @@ jobs:
             temp/modified/chr-${{ env.TARGET_VERSION }}*-uefi.*.zip
             temp/modified/mikrotik-${{ env.TARGET_VERSION }}*.iso
             temp/modified/packages/routeros-${{ env.TARGET_VERSION }}*.npk
+            temp/original/initramfs_chr-${{ matrix.arch }}-${{ env.TARGET_VERSION }}.zip
+            temp/original/initramfs_iso-${{ matrix.arch }}-${{ env.TARGET_VERSION }}.zip
             temp/original/initrd_chr-${{ matrix.arch }}-${{ env.TARGET_VERSION }}.zip
             temp/original/initrd_iso-${{ matrix.arch }}-${{ env.TARGET_VERSION }}.zip
             temp/original/unpacked_files-${{ matrix.arch }}-${{ env.TARGET_VERSION }}.zip
