@@ -12,7 +12,9 @@ def patch_bzimage(data:bytes,key_dict:dict):
     payload_length = payload_length - 4 #last 4 bytes is uncompressed size(z_output_len)
     z_output_len = struct.unpack_from('<I',data,payload_offset+payload_length)[0]
     vmlinux_xz = data[payload_offset:payload_offset+payload_length]
+    open('kernel.vmlinux.xz','wb').write(vmlinux_xz)
     vmlinux = lzma.decompress(vmlinux_xz)
+    open('kernel.vmlinux.bin','wb').write(vmlinux)
     assert z_output_len == len(vmlinux), 'vmlinux size is not equal to expected'
     CPIO_HEADER_MAGIC = b'07070100'
     CPIO_FOOTER_MAGIC = b'TRAILER!!!\x00\x00\x00\x00' #545241494C455221212100000000
@@ -20,6 +22,7 @@ def patch_bzimage(data:bytes,key_dict:dict):
     initramfs = vmlinux[cpio_offset1:]
     cpio_offset2 = initramfs.index(CPIO_FOOTER_MAGIC)+len(CPIO_FOOTER_MAGIC)
     initramfs = initramfs[:cpio_offset2]
+    open('kernel.initramfs.bin','wb').write(initramfs)
     new_initramfs = initramfs       
     for old_public_key,new_public_key in key_dict.items():
         if old_public_key in new_initramfs:
@@ -80,7 +83,9 @@ def patch_block(dev:str,file:str,key_dict):
         print(']')
 
 def patch_initrd_xz(initrd_xz:bytes,key_dict:dict,ljust=True):
+    open('kernel.initrd.xz','wb').write(initrd_xz)
     initrd = lzma.decompress(initrd_xz)
+    open('kernel.initrd.bin','wb').write(initrd)
     new_initrd = initrd  
     for old_public_key,new_public_key in key_dict.items():
         if old_public_key in new_initrd:
@@ -127,7 +132,9 @@ def patch_elf(data: bytes,key_dict:dict):
 
 def patch_pe(data: bytes,key_dict:dict):
     vmlinux_xz = find_7zXZ_data(data)
+    open('kernel.vmlinux.xz', 'wb').write(vmlinux_xz)
     vmlinux = lzma.decompress(vmlinux_xz)
+    open('kernel.vmlinux.bin', 'wb').write(vmlinux)
     initrd_xz_offset = vmlinux.index(b'\xFD7zXZ\x00\x00\x01')
     initrd_xz_size = vmlinux[initrd_xz_offset:].index(b'\x00\x00\x00\x00\x01\x59\x5A') + 7
     initrd_xz = vmlinux[initrd_xz_offset:initrd_xz_offset+initrd_xz_size]
