@@ -206,6 +206,7 @@
     if [[ "$TARGET_ARCH" == 'x86' ]]; then
       cp $MWD/efiboot/linux.x86_64 $OWD/BOOTX64.EFI
       python3 patch.py kernel $MWD/efiboot/linux.x86_64
+      mkdir $OWD/initramfs_iso; cp kernel.initramfs.bin $OWD/iso.initramfs.bin; cd $OWD/initramfs_iso; cpio -i < ../iso.initramfs.bin; zip -r -y ../initramfs_iso-$TARGET_ARCH-$TARGET_VERSION.zip *; cd -; rm kernel.*.*
       cp $MWD/efiboot/linux.x86_64 $MWD/BOOTX64.EFI
       cp $MWD/BOOTX64.EFI $MWD/iso/isolinux/linux
       umount $MWD/efiboot
@@ -227,6 +228,7 @@
     elif [[ "$TARGET_ARCH" == 'arm64' ]]; then
       cp $MWD/efiboot/EFI/BOOT/BOOTAA64.EFI $OWD/BOOTAA64.EFI
       python3 patch.py kernel $MWD/efiboot/EFI/BOOT/BOOTAA64.EFI
+      mkdir $OWD/initrd_iso; cp kernel.initrd.bin $OWD/iso.initrd.bin; cd $OWD/initrd_iso; cpio -i < ../iso.initrd.bin; zip -r -y ../initrd_iso-$TARGET_ARCH-$TARGET_VERSION.zip *; cd -; rm kernel.*.*
       cp $MWD/efiboot/EFI/BOOT/BOOTAA64.EFI $MWD/BOOTAA64.EFI
       umount $MWD/efiboot
       xorriso -as mkisofs -o $MWD/mikrotik-$TARGET_VERSION$TARGET_ARCH_SUFFIX.iso \
@@ -291,6 +293,7 @@
       cp $OWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX.img $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.img
       qemu-nbd -c /dev/nbd1 -f raw $MWD/chr-$TARGET_VERSION$TARGET_ARCH_SUFFIX-bios.img
       python3 patch.py block /dev/nbd1p1 EFI/BOOT/BOOTX64.EFI
+      mkdir $OWD/initramfs_chr; cp kernel.initramfs.bin $OWD/chr.initramfs.bin; cd $OWD/initramfs_chr; cpio -i < ../chr.initramfs.bin; zip -r -y ../initramfs_chr-$TARGET_ARCH-$TARGET_VERSION.zip *; cd -; rm kernel.*.*
       mkdir -p $MWD/img/{bios-boot,bios-routeros}
       mount /dev/nbd1p1 $MWD/img/bios-boot/
       cp $MWD/img/bios-boot/EFI/BOOT/BOOTX64.EFI $MWD/CHR.BOOTX64.EFI
@@ -311,6 +314,7 @@
       mkdir -p $OWD/img/boot
       mount /dev/nbd1p1 $OWD/img/boot/
       python3 patch.py kernel $OWD/img/boot/EFI/BOOT/BOOTAA64.EFI -O $MWD/CHR.BOOTAA64.EFI
+      mkdir $OWD/initrd_chr; cp kernel.initrd.bin $OWD/chr.initrd.bin; cd $OWD/initrd_chr; cpio -i < ../chr.initrd.bin; zip -r -y ../initrd_chr-$TARGET_ARCH-$TARGET_VERSION.zip *; cd -; rm kernel.*.*
       mkdir -p  $MWD/img/boot/EFI/BOOT
       cp $MWD/CHR.BOOTAA64.EFI $MWD/img/boot/EFI/BOOT/BOOTAA64.EFI
       umount /dev/nbd1p1
