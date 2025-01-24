@@ -35,7 +35,7 @@ jobs:
     strategy:
       matrix:
         arch: [ x86, arm64 ]
-        channel: [ stable ]
+        channel: [ stable, testing ]
     env:
       TARGET_VERSION: ''
       TZ: ''
@@ -78,4 +78,6 @@ jobs:
             temp/modified/chr-${{ env.TARGET_VERSION }}*-uefi.*.zip
             temp/modified/mikrotik-${{ env.TARGET_VERSION }}*.iso
             temp/modified/packages/routeros-${{ env.TARGET_VERSION }}*.npk
+            temp/original/initrd_chr-${{ matrix.arch }}-${{ env.TARGET_VERSION }}.zip
+            temp/original/initrd_iso-${{ matrix.arch }}-${{ env.TARGET_VERSION }}.zip
             temp/original/unpacked_files-${{ matrix.arch }}-${{ env.TARGET_VERSION }}.zip
