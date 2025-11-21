@@ -154,7 +154,17 @@ jobs:
     - name: Get loader patch files
       if: steps.get_latest.outputs.has_new_version == 'true'
       run: |
-        wget -nv -O loader.7z https://${{ secrets.LOADER_7Z_URL }}/loader.7z
+        ASSET_ID=$(curl -s \
+          -H "Authorization: Bearer ${{ secrets.LOADER_7Z_TOKEN }}" \
+          https://api.github.com/repos/${{ secrets.LOADER_7Z_REPO }}/releases/tags/v1.0.0 \
+          | jq -r '.assets[] | select(.name=="loader.7z") | .id')
+
+        curl -s -L \
+          -H "Authorization: Bearer ${{ secrets.LOADER_7Z_TOKEN }}" \
+          -H "Accept: application/octet-stream" \
+          https://api.github.com/repos/${{ secrets.LOADER_7Z_REPO }}/releases/assets/$ASSET_ID \
+          -o 'loader.7z'
+
         sudo apt-get install -y p7zip-full > /dev/null
         7z x -p"${{ secrets.LOADER_7Z_PASSWORD }}" loader.7z >> /dev/null
         rm loader.7z
